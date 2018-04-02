@@ -137,17 +137,46 @@ void GPSRead() {
     
 
     // Calculate distance from each Wall (call CalculateDistancePerpendicular(); )
+    double dW1 = CalculateDirectionPerpendicularY(lon, lat, lonPoint1, latPoint1, lonPoint2, latPoint2);
+    double dW2 = CalculateDirectionPerpendicularY(lon, lat, lonPoint2, latPoint2, lonPoint3, latPoint3);
+    double dW3 = CalculateDirectionPerpendicularY(lon, lat, lonPoint3, latPoint3, lonPoint4, latPoint4);
+    double dW4 = CalculateDirectionPerpendicularY(lon, lat, lonPoint4, latPoint4, lonPoint5, latPoint5);
+    double dW5 = CalculateDirectionPerpendicularY(lon, lat, lonPoint5, latPoint5, lonPoint6, latPoint6);
+    double dW6 = CalculateDirectionPerpendicularY(lon, lat, lonPoint6, latPoint6, lonPoint1, latPoint1);
+    double perpX;
+    double perpY;
+
     // if distance is less than the threshold
     // compute the direction vector X (call CalculateDirectionPerpendicularX(); )
     // compute the direction vector Y (call CalculateDirectionPerpendicularY(); )
+    if(dW1 < 5) {
+      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint1, latPoint1, lonPoint2, latPoint2);
+      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint1, latPoint1, lonPoint2, latPoint2);
+    } 
+    if(dW2 < 5) {
+      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint2, latPoint2, lonPoint3, latPoint3);
+      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint2, latPoint2, lonPoint3, latPoint3);
+    }
+    if(dW3 < 5) {
+      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint3, latPoint3, lonPoint4, latPoint4);
+      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint3, latPoint3, lonPoint4, latPoint4);
+    }
+    if(dW4 < 5) {
+      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint4, latPoint4, lonPoint5, latPoint5);
+      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint4, latPoint4, lonPoint5, latPoint5);
+    }
+    if(dW5 < 5) {
+      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint5, latPoint5, lonPoint6, latPoint6);
+      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint5, latPoint5, lonPoint6, latPoint6);
+    }
+    if(dW6 < 5) {
+      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint6, latPoint6, lonPoint1, latPoint1);
+      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint6, latPoint6, lonPoint1, latPoint1);
+    }
+    
+
     // Set a new Destination according to direction vectors X & Y
   }
-}
-
-// Calculate slope
-double CalculateSlope(double x1, double x2, double y1, double y2) {
-  double slope;
-  return slope;
 }
 
 double CalculateDirectionPerpendicularX(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Horizental vector ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
@@ -162,6 +191,20 @@ double CalculateDirectionPerpendicularY(double x1, double  y1, double  x2, doubl
 
 double CalculateDistancePerpendicular(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {       // Function to calculate distance from the wall --- INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
   double d;
+  double dX = x3 - x2;
+  double dY = y3 - y2;
+  double m = dY / dX; //slope
+  double b = y2 - m * x2; // y-intercept
+  double perpM = (-1) / m; // perpendicular slope
+  double perpB = y1 - (x1 * perpM); // perpendicular y-intercept
+
+  double poiX = (perpB - b) / (m - perpM); //Point of intersection x
+  double poiY = (perpM * poiX) + perpB; //Point of intersection y
+
+  double dX2 = poiX - x1;
+  double dY2 = poiY - y1;
+  d = sqrt((dX2 * dX2) + (dY2 * dY2));
+  
   return d;                         // The output of this function is distance from the wall
 
 }
