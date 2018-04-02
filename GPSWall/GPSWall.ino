@@ -32,6 +32,11 @@ long int lat = 33.420887 * 100000;              // GPS latitude in degree decima
 long int lon = -111.934089 * 100000;            // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
 long int latDestination = 33.421620 * 100000;   // reference destination (INITIAL DESTINATION)
 long int lonDestination = -111.930118 * 100000; // reference destination (INITIAL DESTINATION)
+
+// Our Global Vars
+imu::Vector<3> euler;                         // Vector of IMU
+
+
 ///////////////////////////////////////// Boundary points  //////////////////////////////////////////
 long int latPoint1 = 33.421846 * 100000;     // reference destination (Point1)
 long int lonPoint1 =  -111.934683 * 100000;   // reference destination (Point1)
@@ -127,6 +132,9 @@ void GPSRead() {
   if (GPS.fix) {
     // read GPS Latitude in degree decimal
     // read GPS Longitude in degree decimal
+    lat = GPS.latitudeDegrees * 100000;
+    lon = GPS.longitudeDegrees * 100000;
+    
 
     // Calculate distance from each Wall (call CalculateDistancePerpendicular(); )
     // if distance is less than the threshold
@@ -134,6 +142,12 @@ void GPSRead() {
     // compute the direction vector Y (call CalculateDirectionPerpendicularY(); )
     // Set a new Destination according to direction vectors X & Y
   }
+}
+
+// Calculate slope
+double CalculateSlope(double x1, double x2, double y1, double y2) {
+  double slope;
+  return slope;
 }
 
 double CalculateDirectionPerpendicularX(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Horizental vector ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
@@ -153,19 +167,87 @@ double CalculateDistancePerpendicular(double x1, double  y1, double  x2, double 
 }
 
 void ReadHeading() { 
- // Read Heading from BNO055 sensor
+  // Read Heading from BNO055 sensor
+  euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
 }
 
 void CalculateBearing() {
-// Calculate Bearing based on current and destination coordinates
+  // Calculate Bearing based on current and destination coordinates
+  Bearing = 90 - atan2((latDestination - lat),(lonDestination - lon)) * (180 / PI);
+  if(Bearing < 0) {
+    Bearing += 360;
+  }
 }
 
 void CalculateSteering() { 
   // calculate steering angle based on heading and bearing
+  float x = euler.x() + 10.37;
+
+  if (x > 360)
+  {
+    x -= 360;
+  }
+
+  // calculate the distance left and right to desired heading
+  ///////////////////////////////////////////////////////////
+  if(x > Bearing) {
+
+    distL = x - Bearing;
+    distR = (360 - x) + Bearing;
+    
+  } else {
+
+    distR = Bearing - x;
+    distL = (360 - Bearing) + x;
+    
+  }
+  ///////////////////////////////////////////////////////////
+
+  // Set the steering angle
+  ///////////////////////////////////////////////////////////
+  if (distL < distR) { 
+    steeringAngle = 60; // turn left all the way, it's closer...
+    
+    if(distL < 45)
+     steeringAngle = 70;
+
+    if(distL < 30)
+     steeringAngle = 80;
+
+    if(distL < 15)
+     steeringAngle = 85;
+    
+  } else {
+    steeringAngle = 125; // turn right, it's closer...
+
+    if(distR < 45)
+     steeringAngle = 115;
+
+    if(distR < 30)
+     steeringAngle = 105;
+
+    if(distR < 15)
+     steeringAngle = 100;
+    
+  }
+
+  // x == ref angle, +/- 1
+  //if(x >= ref - 2 && x <= ref + 2) {
+  if(x == Bearing) {
+    steeringAngle = 93; // go straight
+  }
 }
 
 void SetCarDirection() { 
- // Set direction (actuate)                                                                          
+ // Set direction (actuate)  
+   carSpeed = 20;
+  if(distance < 4) {
+    carSpeed = 0;
+  }
+
+  
+  analogWrite(carSpeedPin, carSpeed); //change to carSpeed for production
+  myservo.write(steeringAngle);                                                                        
 }
 
 
