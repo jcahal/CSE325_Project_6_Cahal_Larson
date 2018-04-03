@@ -1,5 +1,3 @@
-
-
 #include <Adafruit_BNO055.h>
 #include <FlexiTimer2.h>
 #include <Adafruit_Sensor.h>
@@ -176,16 +174,48 @@ void GPSRead() {
     
 
     // Set a new Destination according to direction vectors X & Y
+    // latDestination =
+    // lonDestination = 
   }
 }
 
 double CalculateDirectionPerpendicularX(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Horizental vector ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
   double Dx;
+
+  double dX = x3 - x2;
+  double dY = y3 - y2;
+  double m = dY / dX; //slope
+  double b = y2 - m * x2; // y-intercept
+  double perpM = (-1) / m; // perpendicular slope
+  double perpB = y1 - (x1 * perpM); // perpendicular y-intercept
+  double poiX = (perpB - b) / (m - perpM); //Point of intersection x
+  double poiY = (m * poiX) + b; //Point of intersection y
+
+  double x = poiX - x1;
+  double y = poiY - y1;
+  double magnitude = sqrt((x * x) + (y * y));
+  Dx = -x \ magnitude;
+  
   return Dx;                        // The output of this function is direction along x-axis
 }
 
 double CalculateDirectionPerpendicularY(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Vertical vector   ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
   double Dy;
+
+  double dX = x3 - x2;
+  double dY = y3 - y2;
+  double m = dY / dX; //slope
+  double b = y2 - m * x2; // y-intercept
+  double perpM = (-1) / m; // perpendicular slope
+  double perpB = y1 - (x1 * perpM); // perpendicular y-intercept
+  double poiX = (perpB - b) / (m - perpM); //Point of intersection x
+  double poiY = (m * poiX) + b; //Point of intersection y
+
+  double x = poiX - x1;
+  double y = poiY - y1;
+  double magnitude = sqrt((x * x) + (y * y));
+  Dy = -y \ magnitude;
+  
   return Dy ;                       // The output of this function is direction along y-axis
 }
 
@@ -199,7 +229,7 @@ double CalculateDistancePerpendicular(double x1, double  y1, double  x2, double 
   double perpB = y1 - (x1 * perpM); // perpendicular y-intercept
 
   double poiX = (perpB - b) / (m - perpM); //Point of intersection x
-  double poiY = (perpM * poiX) + perpB; //Point of intersection y
+  double poiY = (m * poiX) + b; //Point of intersection y
 
   double dX2 = poiX - x1;
   double dY2 = poiY - y1;
