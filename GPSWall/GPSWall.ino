@@ -18,14 +18,12 @@ LiquidCrystal lcd( 8, 9, 4, 5, 6, 7); // define lcd pins use these default value
 
 // Global variables that change across functions
 
-float Bearing = 0;
-int STEERANGLE = 90;                            // servo initial angle (range is 0:180)
-float HEADING = 0;                              // heading
-int LidarRight;                                 // LIDAR left
-int LidarLeft;                                  // LIDAR right
+float bearing = 0;
+int steeringAngle = 90;                         // servo initial angle (range is 0:180)
+int carSpeed;
+float heading = 0;                              // heading
 boolean usingInterrupt = false;                 // Using interrupt for reading GPS chars
 int carSpeedPin = 2;                            // pin for DC motor (PWM for motor driver)
-float errorHeadingRef = 0;                      // Heading error
 long int lat = 33.420887 * 100000;              // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
 long int lon = -111.934089 * 100000;            // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
 long int latDestination = 33.421620 * 100000;   // reference destination (INITIAL DESTINATION)
@@ -54,6 +52,10 @@ long int lonPoint5 =  -111.934168 * 100000;   // reference destination (Point5)
 long int latPoint6 = 33.421151 * 100000;     // reference destination (Point6)
 long int lonPoint6 =  -111.934220 * 100000;   // reference destination (Point6)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+long int lats[6] = {latPoint1, latPoint2, latPoint3, latPoint4, latPoint5, latPoint6};
+long int lons[6] = {lonPoint1, lonPoint2, lonPoint3, lonPoint4, lonPoint5, lonPoint6};
+double dists[6];
 
 
 
@@ -116,12 +118,6 @@ void useInterrupt(boolean v) {                // Interrupt for reading GPS data.
   }
 }
 
-ISR(TIMER4_OVF_vect) {      // This function is called every 1 second ....
-  sei();                    // set interrupt flag ********VERY IMPORTANT******* you need to set the interrupt flag or programm will stuck here!!!
-  TCNT4  = 336;             //   re-initialize timer value
-  GPSRead();                //   read GPS data
-}
-
 void GPSRead() {
   if (GPS.newNMEAreceived()) {
     if (!GPS.parse(GPS.lastNMEA()))
@@ -132,91 +128,8 @@ void GPSRead() {
     // read GPS Longitude in degree decimal
     lat = GPS.latitudeDegrees * 100000;
     lon = GPS.longitudeDegrees * 100000;
-    
 
-    // Calculate distance from each Wall (call CalculateDistancePerpendicular(); )
-    double dW1 = CalculateDirectionPerpendicularY(lon, lat, lonPoint1, latPoint1, lonPoint2, latPoint2);
-    double dW2 = CalculateDirectionPerpendicularY(lon, lat, lonPoint2, latPoint2, lonPoint3, latPoint3);
-    double dW3 = CalculateDirectionPerpendicularY(lon, lat, lonPoint3, latPoint3, lonPoint4, latPoint4);
-    double dW4 = CalculateDirectionPerpendicularY(lon, lat, lonPoint4, latPoint4, lonPoint5, latPoint5);
-    double dW5 = CalculateDirectionPerpendicularY(lon, lat, lonPoint5, latPoint5, lonPoint6, latPoint6);
-    double dW6 = CalculateDirectionPerpendicularY(lon, lat, lonPoint6, latPoint6, lonPoint1, latPoint1);
-    double perpX;
-    double perpY;
-
-    // if distance is less than the threshold
-    // compute the direction vector X (call CalculateDirectionPerpendicularX(); )
-    // compute the direction vector Y (call CalculateDirectionPerpendicularY(); )
-    if(dW1 < 5) {
-      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint1, latPoint1, lonPoint2, latPoint2);
-      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint1, latPoint1, lonPoint2, latPoint2);
-    } 
-    if(dW2 < 5) {
-      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint2, latPoint2, lonPoint3, latPoint3);
-      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint2, latPoint2, lonPoint3, latPoint3);
-    }
-    if(dW3 < 5) {
-      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint3, latPoint3, lonPoint4, latPoint4);
-      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint3, latPoint3, lonPoint4, latPoint4);
-    }
-    if(dW4 < 5) {
-      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint4, latPoint4, lonPoint5, latPoint5);
-      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint4, latPoint4, lonPoint5, latPoint5);
-    }
-    if(dW5 < 5) {
-      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint5, latPoint5, lonPoint6, latPoint6);
-      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint5, latPoint5, lonPoint6, latPoint6);
-    }
-    if(dW6 < 5) {
-      perpX = CalculateDirectionPerpendicularX(lon, lat, lonPoint6, latPoint6, lonPoint1, latPoint1);
-      perpY = CalculateDirectionPerpendicularY(lon, lat, lonPoint6, latPoint6, lonPoint1, latPoint1);
-    }
-    
-
-    // Set a new Destination according to direction vectors X & Y
-    // latDestination =
-    // lonDestination = 
   }
-}
-
-double CalculateDirectionPerpendicularX(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Horizental vector ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
-  double Dx;
-
-  double dX = x3 - x2;
-  double dY = y3 - y2;
-  double m = dY / dX; //slope
-  double b = y2 - m * x2; // y-intercept
-  double perpM = (-1) / m; // perpendicular slope
-  double perpB = y1 - (x1 * perpM); // perpendicular y-intercept
-  double poiX = (perpB - b) / (m - perpM); //Point of intersection x
-  double poiY = (m * poiX) + b; //Point of intersection y
-
-  double x = poiX - x1;
-  double y = poiY - y1;
-  double magnitude = sqrt((x * x) + (y * y));
-  Dx = -x \ magnitude;
-  
-  return Dx;                        // The output of this function is direction along x-axis
-}
-
-double CalculateDirectionPerpendicularY(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Vertical vector   ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
-  double Dy;
-
-  double dX = x3 - x2;
-  double dY = y3 - y2;
-  double m = dY / dX; //slope
-  double b = y2 - m * x2; // y-intercept
-  double perpM = (-1) / m; // perpendicular slope
-  double perpB = y1 - (x1 * perpM); // perpendicular y-intercept
-  double poiX = (perpB - b) / (m - perpM); //Point of intersection x
-  double poiY = (m * poiX) + b; //Point of intersection y
-
-  double x = poiX - x1;
-  double y = poiY - y1;
-  double magnitude = sqrt((x * x) + (y * y));
-  Dy = -y \ magnitude;
-  
-  return Dy ;                       // The output of this function is direction along y-axis
 }
 
 double CalculateDistancePerpendicular(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {       // Function to calculate distance from the wall --- INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
@@ -239,22 +152,96 @@ double CalculateDistancePerpendicular(double x1, double  y1, double  x2, double 
 
 }
 
+void CalculateDistanceToWalls() {
+  double dist;
+  
+  // Calculate distance from each Wall
+  for(int i = 0; i < 6; i++) {
+    int j = i + 1;
+    
+    if(j == 6) 
+      j = 0;
+
+    dist = CalculateDistancePerpendicular(lon, lat, (double)lons[i], (double)lats[i], (double)lons[j], (double)lats[j]);
+
+    // Put distance in distances array.
+    dists[i] = dist;
+    
+  }
+}
+
 void ReadHeading() { 
   // Read Heading from BNO055 sensor
   euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
 }
 
 void CalculateBearing() {
-  // Calculate Bearing based on current and destination coordinates
-  Bearing = 90 - atan2((latDestination - lat),(lonDestination - lon)) * (180 / PI);
-  if(Bearing < 0) {
-    Bearing += 360;
+  // Calculate bearing based on current and destination coordinates
+
+  // Check if robot is in the top section
+  if(lat > lats[2]) {
+    // the robot's in the top section
+    // worry about walls 1, 2, & 6
+    
+    // avoid wall 1
+    if(dists[0] < 5) {
+      bearing = 180;
+    }
+  
+    // avoid wall 2
+    if(dists[1] < 5) {
+      bearing = 270;
+    }
+
+    // avoid wall 6
+    if(dists[5] < 5) {
+      bearing = 90;
+    }
+  
+    // avoid wall 1 & 2
+    if(dists[0] < 5 && dists[1] < 5) {
+      bearing = 225;
+    } 
+
+    // avoid wall 1 & 6
+    if(dists[0] < 5 && dists[5] < 5) {
+      bearing = 135;
+    }
+  } else {
+    // the robot's in the bottom section
+    // worry about walls 3, 4, & 5
+
+    // avoid wall 3
+    if(dists[2] < 5) {
+      bearing = 270;
+    }
+  
+    // avoid wall 4
+    if(dists[3] < 5) {
+      bearing = 0;
+    }
+
+    // avoid wall 5
+    if(dists[4] < 5) {
+      bearing = 90;
+    }
+  
+    // avoid wall 3 & 4
+    if(dists[2] < 5 && dists[3] < 5) {
+      bearing = 315;
+    } 
+
+    // avoid wall 4 & 5
+    if(dists[3] < 5 && dists[4] < 5) {
+      bearing = 45;
+    }
   }
 }
 
 void CalculateSteering() { 
   // calculate steering angle based on heading and bearing
   float x = euler.x() + 10.37;
+  int distL, distR;
 
   if (x > 360)
   {
@@ -263,15 +250,15 @@ void CalculateSteering() {
 
   // calculate the distance left and right to desired heading
   ///////////////////////////////////////////////////////////
-  if(x > Bearing) {
+  if(x > bearing) {
 
-    distL = x - Bearing;
-    distR = (360 - x) + Bearing;
+    distL = x - bearing;
+    distR = (360 - x) + bearing;
     
   } else {
 
-    distR = Bearing - x;
-    distL = (360 - Bearing) + x;
+    distR = bearing - x;
+    distL = (360 - bearing) + x;
     
   }
   ///////////////////////////////////////////////////////////
@@ -305,8 +292,7 @@ void CalculateSteering() {
   }
 
   // x == ref angle, +/- 1
-  //if(x >= ref - 2 && x <= ref + 2) {
-  if(x == Bearing) {
+  if(x >= bearing - 2 && x <= bearing + 2) {
     steeringAngle = 93; // go straight
   }
 }
@@ -314,26 +300,26 @@ void CalculateSteering() {
 void SetCarDirection() { 
  // Set direction (actuate)  
    carSpeed = 20;
-  if(distance < 4) {
-    carSpeed = 0;
-  }
-
   
   analogWrite(carSpeedPin, carSpeed); //change to carSpeed for production
   myservo.write(steeringAngle);                                                                        
 }
 
 
-
-
-
 ISR(TIMER1_OVF_vect) {        // This function is called every 0.1 seconds
   sei();                      // set interrupt flag ********VERY IMPORTANT******* you need to set the interrupt flag or programm will stuck here!!!
   TCNT1  = 59016;
   ReadHeading();                                                                // Read Heading
-  CalculateBearing();                                                       // Calculate Bearing
+  CalculateBearing();                                                       // Calculate bearing
   CalculateSteering();                                                         // Calculate Steer angle
   SetCarDirection();                                                        // Set steer angle
+}
+
+ISR(TIMER4_OVF_vect) {      // This function is called every 1 second ....
+  sei();                    // set interrupt flag ********VERY IMPORTANT******* you need to set the interrupt flag or programm will stuck here!!!
+  TCNT4  = 336;             //   re-initialize timer value
+  GPSRead();                //   read GPS data
+  CalculateDistanceToWalls(); // find distance to walls
 }
 
 
