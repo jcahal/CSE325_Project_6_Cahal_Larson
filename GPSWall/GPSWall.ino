@@ -6,8 +6,10 @@
 #include <utility/imumaths.h>
 #include <Servo.h>
 #include <Adafruit_GPS.h>
+#include "DFR_Key.h"
 
 Adafruit_GPS GPS(&Serial3);                   // define GPS object
+DFR_Key keypad;
 Servo myservo;                                // define servo object
 Adafruit_BNO055 bno = Adafruit_BNO055(55);    // define BNO sensor object
 LiquidCrystal lcd( 8, 9, 4, 5, 6, 7); // define lcd pins use these default values for OUR LCD
@@ -28,9 +30,9 @@ long int lat = 33.420887 * 100000;              // GPS latitude in degree decima
 long int lon = -111.934089 * 100000;            // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
 long int latDestination = 33.421620 * 100000;   // reference destination (INITIAL DESTINATION)
 long int lonDestination = -111.930118 * 100000; // reference destination (INITIAL DESTINATION)
-
-// Our Global Vars
-imu::Vector<3> euler;                         // Vector of IMU
+imu::Vector<3> euler;                           // Vector of IMU
+int localkey = 0;
+int closeWall = 0;
 
 
 ///////////////////////////////////////// Boundary points  //////////////////////////////////////////
@@ -68,18 +70,13 @@ void setup() {
     while (1);
   }
 
-  byte c_data[22] = {0, 0, 0, 0, 0, 0, 209, 4, 9, 5, 9, 6, 0, 0, 255, 255, 255, 255, 232, 3, 1, 3};               // YOUR Calibration DATA
+  // byte c_data[22] = {0, 0, 0, 0, 0, 0, 209, 4, 9, 5, 9, 6, 0, 0, 255, 255, 255, 255, 232, 3, 1, 3};               // YOUR Calibration DATA
+  byte c_data[22] = {0, 0, 0, 0, 0, 0, 82, 253, 156, 2, 80, 1, 0, 0, 0, 0, 2, 0, 232, 3, 184, 2}; // Old Main
   bno.setCalibData(c_data);                                                                                       // SET CALIBRATION DATA
   bno.setExtCrystalUse(true);
 
-  // set timer interrupts
-  noInterrupts();           // disable all interrupts
-  TCCR1A = 0;
-  TCCR1B = 0;
-  TCNT1  = 59016;           // every 0.1 second
-  TCCR1B |= (1 << CS12);    // 256 prescaler
-  TIMSK1 |= (1 << TOIE1);   // enable timer compare interrupt
-
+  // GPS Interrupts
+  noInterrupts();
   TCCR4A = 0;
   TCCR4B = 0;
   TCNT4  = 336;             // every 1 second
@@ -94,7 +91,34 @@ void setup() {
   GPS.sendCommand(PGCMD_ANTENNA);               // notify if antenna detected
   useInterrupt(true);                           // use interrupt for reading gps data
 
-}
+  euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER); // get initial heading 
+  heading = euler.x() + 10.37; // convert to true north
+  bearing = heading; //drive straight
+
+  // Wait to start moving, display LAT, LON
+  localkey = 0;
+  while (localkey != 1) {    // wait for select button
+    lcd.clear();
+    localkey = keypad.getKey();
+    lcd.print("LAT: ");
+    lcd.print(lat);
+    lcd.setCursor(0, 1);
+    lcd.print("LON: "); 
+    lcd.print(lon);
+    delay(100);               // delay to make display visible
+  }
+
+  // Actuate interupts
+  noInterrupts();           // disable all interrupts
+  TCCR1A = 0;
+  TCCR1B = 0;
+  TCNT1  = 59016;           // every 0.1 second
+  TCCR1B |= (1 << CS12);    // 256 prescaler
+  TIMSK1 |= (1 << TOIE1);   // enable timer compare interrupt
+  interrupts();
+
+} 
+/////////////////////////////// end of setup(); ///////////////////////////////////
 
 SIGNAL(TIMER0_COMPA_vect) {                   // Interrupt for reading GPS data. Don't change this...
   char c = GPS.read();
@@ -176,8 +200,9 @@ void ReadHeading() {
 }
 
 void CalculateBearing() {
-  // Calculate bearing based on current and destination coordinates
-
+  closeWall = 0;
+  // Calculate bearing based on distance to walls and seciton of boundary
+  
   // Check if robot is in the top section
   if(lat > lats[2]) {
     // the robot's in the top section
@@ -186,26 +211,31 @@ void CalculateBearing() {
     // avoid wall 1
     if(dists[0] < 5) {
       bearing = 180;
+      closeWall = 1;
     }
   
     // avoid wall 2
     if(dists[1] < 5) {
       bearing = 270;
+      closeWall = 2;
     }
 
     // avoid wall 6
     if(dists[5] < 5) {
       bearing = 90;
+      closeWall = 6;
     }
   
     // avoid wall 1 & 2
     if(dists[0] < 5 && dists[1] < 5) {
       bearing = 225;
+      closeWall = 12;
     } 
 
     // avoid wall 1 & 6
     if(dists[0] < 5 && dists[5] < 5) {
       bearing = 135;
+      closeWall = 16;
     }
   } else {
     // the robot's in the bottom section
@@ -214,26 +244,31 @@ void CalculateBearing() {
     // avoid wall 3
     if(dists[2] < 5) {
       bearing = 270;
+      closeWall = 3;
     }
   
     // avoid wall 4
     if(dists[3] < 5) {
       bearing = 0;
+      closeWall = 4;
     }
 
     // avoid wall 5
     if(dists[4] < 5) {
       bearing = 90;
+      closeWall = 5;
     }
   
     // avoid wall 3 & 4
     if(dists[2] < 5 && dists[3] < 5) {
       bearing = 315;
+      closeWall = 35;
     } 
 
     // avoid wall 4 & 5
     if(dists[3] < 5 && dists[4] < 5) {
       bearing = 45;
+      closeWall = 45;
     }
   }
 }
@@ -323,26 +358,21 @@ ISR(TIMER4_OVF_vect) {      // This function is called every 1 second ....
 }
 
 
-void printHeadingOnLCD() {
-
-}
-
-void printLocationOnLCD() {
-
-}
-
-
-
-void printObstacleOnLCD() {
-
+void printDiagnoticsOnLCD() {
+  lcd.print("LAT");
+  lcd.print(lat);
+  lcd.setCursor(0, 1);
+  lcd.print("LON"); 
+  lcd.print(lon);
+  lcd.setCursor(14, 0);
+  lcd.print("CW"); 
+  lcd.print(closeWall);
 }
 
 void loop() {
   lcd.clear();      // clear LCD
   // you can pring anything on the LCD to debug your program while you're in the field!
-  printHeadingOnLCD();
-  printLocationOnLCD();
-  //  printObstacleOnLCD();
+  printDiagnoticsOnLCD();
   delay(100);
 }
 
