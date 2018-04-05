@@ -26,14 +26,13 @@ int carSpeed;
 float heading = 0;                              // heading
 boolean usingInterrupt = false;                 // Using interrupt for reading GPS chars
 int carSpeedPin = 2;                            // pin for DC motor (PWM for motor driver)
-long int lat = 33.420887 * 100000;              // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
-long int lon = -111.934089 * 100000;            // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
-long int latDestination = 33.421620 * 100000;   // reference destination (INITIAL DESTINATION)
-long int lonDestination = -111.930118 * 100000; // reference destination (INITIAL DESTINATION)
+long int lat; //= 33.420887 * 100000;              // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
+long int lon; //= -111.934089 * 100000;            // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
+//long int latDestination = 33.421620 * 100000;   // reference destination (INITIAL DESTINATION)
+//long int lonDestination = -111.930118 * 100000; // reference destination (INITIAL DESTINATION)
 imu::Vector<3> euler;                           // Vector of IMU
 int localkey = 0;
-int closeWall = 0;
-
+int iterator = 0; // for printing bearing
 
 ///////////////////////////////////////// Boundary points  //////////////////////////////////////////
 long int latPoint1 = 33.421846 * 100000;     // reference destination (Point1)
@@ -66,11 +65,14 @@ void setup() {
   lcd.begin( 16, 2 );                         // LCD type is 16x2 (col & row)
   Serial.begin(9600);                         // serial for monitoring
   if (!bno.begin(Adafruit_BNO055::OPERATION_MODE_NDOF)) {
-    Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+    Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while (1);
   }
-
-  // byte c_data[22] = {0, 0, 0, 0, 0, 0, 209, 4, 9, 5, 9, 6, 0, 0, 255, 255, 255, 255, 232, 3, 1, 3};               // YOUR Calibration DATA
+  
+  // Testing site
+  //byte c_data[22] = {255, 255, 0, 0, 250, 255, 205, 253, 175, 2, 16, 2, 1, 0, 254, 255, 1, 0, 232, 3, 27, 4}; // Brickyard
+  
+  // Production site
   byte c_data[22] = {0, 0, 0, 0, 0, 0, 82, 253, 156, 2, 80, 1, 0, 0, 0, 0, 2, 0, 232, 3, 184, 2}; // Old Main
   bno.setCalibData(c_data);                                                                                       // SET CALIBRATION DATA
   bno.setExtCrystalUse(true);
@@ -91,20 +93,20 @@ void setup() {
   GPS.sendCommand(PGCMD_ANTENNA);               // notify if antenna detected
   useInterrupt(true);                           // use interrupt for reading gps data
 
-  euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER); // get initial heading 
-  heading = euler.x() + 10.37; // convert to true north
-  bearing = heading; //drive straight
-
   // Wait to start moving, display LAT, LON
   localkey = 0;
   while (localkey != 1) {    // wait for select button
     lcd.clear();
     localkey = keypad.getKey();
-    lcd.print("LAT: ");
+    lcd.print("LT");
     lcd.print(lat);
+    lcd.setCursor(12, 0);
+    lcd.print("PRSS");
     lcd.setCursor(0, 1);
-    lcd.print("LON: "); 
+    lcd.print("LN"); 
     lcd.print(lon);
+    lcd.setCursor(12, 1);
+    lcd.print("SLCT");
     delay(100);               // delay to make display visible
   }
 
@@ -117,6 +119,7 @@ void setup() {
   TIMSK1 |= (1 << TOIE1);   // enable timer compare interrupt
   interrupts();
 
+  bearing = heading; //drive straight
 } 
 /////////////////////////////// end of setup(); ///////////////////////////////////
 
@@ -143,6 +146,7 @@ void useInterrupt(boolean v) {                // Interrupt for reading GPS data.
 }
 
 void GPSRead() {
+  Serial.print("GPSRead, ");
   if (GPS.newNMEAreceived()) {
     if (!GPS.parse(GPS.lastNMEA()))
       return;
@@ -152,7 +156,12 @@ void GPSRead() {
     // read GPS Longitude in degree decimal
     lat = GPS.latitudeDegrees * 100000;
     lon = GPS.longitudeDegrees * 100000;
-
+    Serial.print("LAT");
+    Serial.print(lat);
+    Serial.print(" LON");
+    Serial.println(lon);
+  } else {
+    Serial.println("NO FIX");
   }
 }
 
@@ -162,14 +171,30 @@ double CalculateDistancePerpendicular(double x1, double  y1, double  x2, double 
   double dY = y3 - y2;
   double m = dY / dX; //slope
   double b = y2 - m * x2; // y-intercept
-  double perpM = (-1) / m; // perpendicular slope
-  double perpB = y1 - (x1 * perpM); // perpendicular y-intercept
 
-  double poiX = (perpB - b) / (m - perpM); //Point of intersection x
-  double poiY = (m * poiX) + b; //Point of intersection y
+  double perpM;
+  double perpB;
+  double poiX;
+  double poiY;
+
+  if(y2 == y3) { // Horozontal line
+    perpM = 0;
+    perpB = y2;
+    poiX = x1;
+    poiY = b;
+  } else if(x2 == x3) { // Vertical line
+    poiX = x2;
+    poiY = y1;
+  } else {
+    perpM = (-1) / m; // perpendicular slope
+    perpB = y1 - (x1 * perpM); // perpendicular y-intercept
+    poiX = (perpB - b) / (m - perpM); //Point of intersection x
+    poiY = (perpM * poiX) + perpB; //Point of intersection y
+  }
 
   double dX2 = poiX - x1;
   double dY2 = poiY - y1;
+ 
   d = sqrt((dX2 * dX2) + (dY2 * dY2));
   
   return d;                         // The output of this function is distance from the wall
@@ -178,6 +203,14 @@ double CalculateDistancePerpendicular(double x1, double  y1, double  x2, double 
 
 void CalculateDistanceToWalls() {
   double dist;
+
+  // Comment out for production
+  /*
+  dist = CalculateDistancePerpendicular(lon, lat, -11193873.4, 3342394.3, -11193873.4, 3342351.1);
+  dists[0] = dist;
+  */
+
+  // Comment out for testing
   
   // Calculate distance from each Wall
   for(int i = 0; i < 6; i++) {
@@ -192,16 +225,29 @@ void CalculateDistanceToWalls() {
     dists[i] = dist;
     
   }
+  
 }
 
 void ReadHeading() { 
   // Read Heading from BNO055 sensor
   euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
+  heading = euler.x() + 10.37;
 }
 
 void CalculateBearing() {
-  closeWall = 0;
   // Calculate bearing based on distance to walls and seciton of boundary
+  
+  //Comment out for production
+  /*
+  if(dists[0] < 5) {
+    bearing = 270;
+    Serial.println("Hit the wall");
+  }
+  */
+
+  iterator++;
+  
+  // Commented out for testing
   
   // Check if robot is in the top section
   if(lat > lats[2]) {
@@ -211,31 +257,40 @@ void CalculateBearing() {
     // avoid wall 1
     if(dists[0] < 5) {
       bearing = 180;
-      closeWall = 1;
+      Serial.print(dists[0]);
+      Serial.println("m to Wall 1");
     }
   
     // avoid wall 2
     if(dists[1] < 5) {
       bearing = 270;
-      closeWall = 2;
+      Serial.print(dists[1]);
+      Serial.println("m to Wall 2");
     }
 
     // avoid wall 6
     if(dists[5] < 5) {
       bearing = 90;
-      closeWall = 6;
+      Serial.print(dists[5]);
+      Serial.println("m to Wall 6");
     }
   
     // avoid wall 1 & 2
     if(dists[0] < 5 && dists[1] < 5) {
       bearing = 225;
-      closeWall = 12;
+      Serial.print(dists[0]);
+      Serial.print("m to Wall 1, ");
+      Serial.print(dists[1]);
+      Serial.println("m to Wall 2");
     } 
 
     // avoid wall 1 & 6
     if(dists[0] < 5 && dists[5] < 5) {
       bearing = 135;
-      closeWall = 16;
+      Serial.print(dists[0]);
+      Serial.print("m to Wall 1, ");
+      Serial.print(dists[5]);
+      Serial.println("m to Wall 6");
     }
   } else {
     // the robot's in the bottom section
@@ -244,56 +299,66 @@ void CalculateBearing() {
     // avoid wall 3
     if(dists[2] < 5) {
       bearing = 270;
-      closeWall = 3;
+      Serial.print(dists[2]);
+      Serial.println("m to Wall 3");
     }
   
     // avoid wall 4
     if(dists[3] < 5) {
       bearing = 0;
-      closeWall = 4;
+      Serial.print(dists[3]);
+      Serial.println("m to Wall 4");
     }
 
     // avoid wall 5
     if(dists[4] < 5) {
       bearing = 90;
-      closeWall = 5;
+      Serial.print(dists[4]);
+      Serial.println("m to Wall 5");
     }
   
     // avoid wall 3 & 4
     if(dists[2] < 5 && dists[3] < 5) {
       bearing = 315;
-      closeWall = 35;
+      Serial.print(dists[2]);
+      Serial.print("m to Wall 3, ");
+      Serial.print(dists[3]);
+      Serial.println("m to Wall 4");
     } 
 
     // avoid wall 4 & 5
     if(dists[3] < 5 && dists[4] < 5) {
       bearing = 45;
-      closeWall = 45;
+      Serial.print(dists[3]);
+      Serial.print("m to Wall 4, ");
+      Serial.print(dists[4]);
+      Serial.println("m to Wall 5");
     }
   }
+  
 }
+  
 
 void CalculateSteering() { 
   // calculate steering angle based on heading and bearing
-  float x = euler.x() + 10.37;
   int distL, distR;
 
-  if (x > 360)
+  if (heading > 360)
   {
-    x -= 360;
+    heading -= 360;
   }
 
   // calculate the distance left and right to desired heading
   ///////////////////////////////////////////////////////////
-  if(x > bearing) {
+  if(heading > bearing) {
 
-    distL = x - bearing;
-    distR = (360 - x) + bearing;
+    distL = heading - bearing;
+    distR = (360 - heading) + bearing;
     
   } else {
 
-    distR = bearing - x;
-    distL = (360 - bearing) + x;
+    distR = bearing - heading;
+    distL = (360 - bearing) + heading;
     
   }
   ///////////////////////////////////////////////////////////
@@ -332,9 +397,13 @@ void CalculateSteering() {
   }
 }
 
-void SetCarDirection() { 
- // Set direction (actuate)  
-   carSpeed = 20;
+void SetCarDirection() {   
+  
+  // Production speed
+  carSpeed = 10;
+
+  // Test speed
+  //carSpeed = 0;
   
   analogWrite(carSpeedPin, carSpeed); //change to carSpeed for production
   myservo.write(steeringAngle);                                                                        
@@ -359,17 +428,27 @@ ISR(TIMER4_OVF_vect) {      // This function is called every 1 second ....
 
 
 void printDiagnoticsOnLCD() {
-  lcd.print("LAT");
+  lcd.print("LT");
   lcd.print(lat);
+  lcd.setCursor(10, 0);
+  lcd.print("H");
+  lcd.print(heading);
   lcd.setCursor(0, 1);
-  lcd.print("LON"); 
+  lcd.print("LN"); 
   lcd.print(lon);
-  lcd.setCursor(14, 0);
-  lcd.print("CW"); 
-  lcd.print(closeWall);
+  lcd.setCursor(10, 1);
+  lcd.print("B");
+  lcd.print(bearing);
 }
 
 void loop() {
+  if(iterator == 10) {
+    Serial.print("Distance ");
+    Serial.print(dists[0]);
+    Serial.print(" Bearing ");
+    Serial.println(bearing);
+    iterator = 0;
+  }
   lcd.clear();      // clear LCD
   // you can pring anything on the LCD to debug your program while you're in the field!
   printDiagnoticsOnLCD();
