@@ -35,7 +35,7 @@ int localkey = 0;
 int iterator = 0; // for printing bearing
 
 ///////////////////////////////////////// Boundary points  //////////////////////////////////////////
-long int latPoint1 = 33.421846 * 1000000;     // reference destination (Point1)
+/*long int latPoint1 = 33.421846 * 1000000;     // reference destination (Point1)
 long int lonPoint1 =  -111.934683 * 1000000;   // reference destination (Point1)
 
 long int latPoint2 = 33.421846 * 1000000;     // reference destination (Point2)
@@ -51,7 +51,25 @@ long int latPoint5 = 33.420769 * 1000000;     // reference destination (Point5)
 long int lonPoint5 =  -111.934175 * 1000000;   // reference destination (Point5)
 
 long int latPoint6 = 33.421198 * 1000000;     // reference destination (Point6)
-long int lonPoint6 =  -111.934175 * 1000000;   // reference destination (Point6)
+long int lonPoint6 =  -111.934175 * 1000000;   // reference destination (Point6) */
+
+long int latPoint1 = 33.421781 * 1000000;     // reference destination (Point1)
+long int lonPoint1 =  -111.934471 * 1000000;   // reference destination (Point1)
+
+long int latPoint2 = 33.421781 * 1000000;     // reference destination (Point2)
+long int lonPoint2 =  -111.933545 * 1000000;   // reference destination (Point2)
+
+long int latPoint3 = 33.421166 * 1000000;     // reference destination (Point3)
+long int lonPoint3 =  -111.933812 * 1000000;   // reference destination (Point3)
+
+long int latPoint4 = 33.420822 * 1000000;     // reference destination (Point4)
+long int lonPoint4 =  -111.933812 * 1000000;   // reference destination (Point4)
+
+long int latPoint5 = 33.420822 * 1000000;     // reference destination (Point5)
+long int lonPoint5 =  -111.934199 * 1000000;   // reference destination (Point5)
+
+long int latPoint6 = 33.421166 * 1000000;     // reference destination (Point6)
+long int lonPoint6 =  -111.934199 * 1000000;   // reference destination (Point6)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
 long int lats[6] = {latPoint1, latPoint2, latPoint3, latPoint4, latPoint5, latPoint6};
@@ -221,7 +239,7 @@ void CalculateDistanceToWalls() {
 
     dists[i] = CalculateDistancePerpendicular(lon, lat, (double)lons[i], (double)lats[i], (double)lons[j], (double)lats[j]);
 
-    if(i == 3) {
+    if(i == 3 || i == 4 || i == 5) {
       dists[i] = dists[i] * -1.0;
     }
     
@@ -260,12 +278,12 @@ void CalculateBearing() {
   
     // avoid wall 2
     if(dists[1] < 50) {
-      bearing = 270;
+      bearing = 300;
     }
 
     // avoid wall 6
     if(dists[5] < 50) {
-      bearing = 90;
+      bearing = 60;
     }
   
     // avoid wall 1 & 2
